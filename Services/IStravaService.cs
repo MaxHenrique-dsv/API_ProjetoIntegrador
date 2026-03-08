@@ -1,0 +1,12 @@
+using StravaIntegration.Models.DTOs;
+using StravaIntegration.Models.Strava;
+
+namespace StravaIntegration.Services;
+
+public interface IStravaService
+{
+    string BuildAuthorizationUrl(string state);
+    Task<StravaConnectResult> ExchangeCodeAndSaveTokenAsync(string code, Guid userId, CancellationToken ct = default);
+    Task<IReadOnlyList<StravaActivity>> GetRecentActivitiesAsync(Guid userId, int count = 10, CancellationToken ct = default);
+    Task<StravaActivity> GetActivityByIdAsync(Guid userId, long activityId, CancellationToken ct = default);
+}
