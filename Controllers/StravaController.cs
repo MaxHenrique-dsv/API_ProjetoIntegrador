@@ -5,6 +5,8 @@ using StravaIntegration.Exceptions;
 using StravaIntegration.Models.Options;
 using StravaIntegration.Services;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace StravaIntegration.Controllers;
 
@@ -18,64 +20,79 @@ public sealed class StravaController : ControllerBase
 {
     private readonly IStravaService _stravaService;
     private readonly AppOptions _appOptions;
+    private readonly StravaOptions _stravaOptions;
     private readonly ILogger<StravaController> _logger;
 
     public StravaController(
         IStravaService stravaService,
         IOptions<AppOptions> appOptions,
+        IOptions<StravaOptions> stravaOptions,
         ILogger<StravaController> logger)
     {
         _stravaService = stravaService;
-        _appOptions    = appOptions.Value;
-        _logger        = logger;
+        _appOptions = appOptions.Value;
+        _stravaOptions = stravaOptions.Value;
+        _logger = logger;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // GET /api/strava/login
+    // GET /api/strava/login?userId={supabase-user-uuid}
     // ──────────────────────────────────────────────────────────────────────────
 
     /// <summary>
     /// Inicia o fluxo OAuth do Strava.
-    /// Redireciona o usuário para a página de autorização do Strava.
-    /// O userId do Supabase é passado como `state` para ser recuperado no callback.
+    /// 
+    /// ⚠️ POR QUE NÃO USAR [Authorize] AQUI:
+    /// Este endpoint é acessado via redirect de browser (link/botão no app).
+    /// Browsers não enviam o header "Authorization: Bearer ..." em redirecionamentos,
+    /// então qualquer [Authorize] resulta em 401 antes de chegar no Strava.
+    /// A segurança é garantida pelo HMAC assinado no `state`.
+    /// 
+    /// COMO USAR:
+    /// GET /api/strava/login?userId={uuid-do-supabase}
+    /// O frontend obtém o userId do Supabase Auth e passa como query param.
     /// </summary>
-    /// <remarks>
-    /// O cliente deve passar o JWT do Supabase no header Authorization.
-    /// O userId é extraído do token JWT pelo middleware de autenticação.
-    /// </remarks>
     [HttpGet("login")]
-    [Authorize]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public IActionResult Login()
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status302Found)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public IActionResult Login([FromQuery] Guid userId)
     {
-        // Extrai o user_id do claim do JWT do Supabase (sub = UUID do usuário)
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? User.FindFirstValue("sub");
+        if (userId == Guid.Empty)
+            return BadRequest(new
+            {
+                error = "userId é obrigatório.",
+                example = "/api/strava/login?userId=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            });
 
-        if (string.IsNullOrEmpty(userId))
-            return Unauthorized(new { error = "Usuário não autenticado." });
-
-        // O `state` codifica o userId para recuperá-lo no callback sem sessão
+        // ── Monta o state com HMAC para evitar CSRF / adulteração ─────────────
+        // state = Base64( userId + "." + timestamp ) + "." + HMAC-SHA256
+        // O callback valida o HMAC antes de processar o code.
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
+        var payload = $"{userId}|{timestamp}";
+        var hmac = ComputeHmac(payload, _stravaOptions.ClientSecret);
         var state = Convert.ToBase64String(
-            System.Text.Encoding.UTF8.GetBytes(userId));
+            Encoding.UTF8.GetBytes($"{payload}|{hmac}"));
 
         var authUrl = _stravaService.BuildAuthorizationUrl(state);
 
-        _logger.LogInformation("Iniciando OAuth Strava para userId={UserId}", userId);
-        return Ok(new { url = authUrl });
+        _logger.LogInformation(
+            "Iniciando OAuth Strava para userId={UserId}. Redirect → Strava",
+            userId);
+
+        return Redirect(authUrl);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // GET /api/strava/callback
+    // GET /api/strava/callback  ← Strava redireciona aqui após autorização
     // ──────────────────────────────────────────────────────────────────────────
 
     /// <summary>
     /// Callback OAuth do Strava. Recebe o authorization code e o state,
-    /// troca pelo access token e salva no Supabase.
+    /// valida o HMAC, troca pelo access token e salva no Supabase.
     /// </summary>
     [HttpGet("callback")]
-    [AllowAnonymous] // O Strava redireciona sem JWT
+    [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status302Found)]
     public async Task<IActionResult> Callback(
         [FromQuery] string? code,
@@ -84,7 +101,7 @@ public sealed class StravaController : ControllerBase
         [FromQuery] string? scope,
         CancellationToken ct)
     {
-        // Usuário recusou a autorização no Strava
+        // Usuário clicou "Negar" na página do Strava
         if (!string.IsNullOrEmpty(error))
         {
             _logger.LogWarning("Strava OAuth negado pelo usuário. Motivo: {Error}", error);
@@ -93,21 +110,14 @@ public sealed class StravaController : ControllerBase
 
         if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(state))
         {
-            _logger.LogError("Callback sem code ou state.");
+            _logger.LogError("Callback recebido sem 'code' ou 'state'.");
             return Redirect($"{_appOptions.FrontendErrorUrl}?reason=invalid_callback");
         }
 
-        // Recupera o userId que foi codificado no state
-        Guid userId;
-        try
+        // ── Valida e extrai o userId do state ─────────────────────────────────
+        if (!TryParseState(state, out var userId, out var stateError))
         {
-            var userIdStr = System.Text.Encoding.UTF8.GetString(
-                Convert.FromBase64String(state));
-            userId = Guid.Parse(userIdStr);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "State inválido no callback Strava.");
+            _logger.LogError("State inválido no callback Strava: {Error}", stateError);
             return Redirect($"{_appOptions.FrontendErrorUrl}?reason=invalid_state");
         }
 
@@ -116,11 +126,13 @@ public sealed class StravaController : ControllerBase
             var result = await _stravaService.ExchangeCodeAndSaveTokenAsync(code, userId, ct);
 
             _logger.LogInformation(
-                "Strava conectado. UserId={UserId}, StravaAthleteId={AthleteId}",
+                "✅ Strava conectado. UserId={UserId}, StravaAthleteId={AthleteId}",
                 result.UserId, result.StravaAthleteId);
 
             return Redirect(
-                $"{_appOptions.FrontendCallbackUrl}?strava_athlete_id={result.StravaAthleteId}");
+                $"{_appOptions.FrontendCallbackUrl}" +
+                $"?strava_athlete_id={result.StravaAthleteId}" +
+                $"&user_id={result.UserId}");
         }
         catch (StravaAuthException ex)
         {
@@ -157,11 +169,11 @@ public sealed class StravaController : ControllerBase
                 a.Id,
                 a.Name,
                 a.SportType,
-                DistanceKm       = Math.Round(a.DistanceKm, 2),
-                PaceSecPerKm     = Math.Round(a.PaceSecPerKm, 0),
-                ElevationGainM   = a.TotalElevationGain,
+                DistanceKm = Math.Round(a.DistanceKm, 2),
+                PaceSecPerKm = Math.Round(a.PaceSecPerKm, 0),
+                ElevationGainM = a.TotalElevationGain,
                 MovingTimeSeconds = a.MovingTime,
-                StartDate        = a.StartDateLocal,
+                StartDate = a.StartDateLocal,
                 a.StravaUrl
             });
 
@@ -211,5 +223,70 @@ public sealed class StravaController : ControllerBase
                ?? User.FindFirstValue("sub");
 
         return Guid.TryParse(raw, out var id) ? id : Guid.Empty;
+    }
+
+    // ── Valida o state assinado com HMAC e extrai o userId ───────────────────
+    private bool TryParseState(string state, out Guid userId, out string? error)
+    {
+        userId = Guid.Empty;
+        error = null;
+
+        try
+        {
+            var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(state));
+            var parts = decoded.Split('|');
+
+            // Espera: userId | timestamp | hmac
+            if (parts.Length != 3)
+            {
+                error = "Formato inválido (esperado 3 partes).";
+                return false;
+            }
+
+            var userIdStr = parts[0];
+            var timestamp = parts[1];
+            var receivedHmac = parts[2];
+
+            // Valida HMAC
+            var payload = $"{userIdStr}|{timestamp}";
+            var expectedHmac = ComputeHmac(payload, _stravaOptions.ClientSecret);
+
+            if (!CryptographicOperations.FixedTimeEquals(
+                    Encoding.UTF8.GetBytes(receivedHmac),
+                    Encoding.UTF8.GetBytes(expectedHmac)))
+            {
+                error = "Assinatura HMAC inválida — possível adulteração.";
+                return false;
+            }
+
+            // Valida expiração do state (15 minutos para o usuário autorizar)
+            var issuedAt = DateTimeOffset.FromUnixTimeSeconds(long.Parse(timestamp));
+            if (DateTimeOffset.UtcNow - issuedAt > TimeSpan.FromMinutes(15))
+            {
+                error = "State expirado. Inicie o fluxo novamente.";
+                return false;
+            }
+
+            if (!Guid.TryParse(userIdStr, out userId))
+            {
+                error = "userId no state não é um UUID válido.";
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    private static string ComputeHmac(string payload, string secret)
+    {
+        var keyBytes = Encoding.UTF8.GetBytes(secret);
+        var dataBytes = Encoding.UTF8.GetBytes(payload);
+        var hash = HMACSHA256.HashData(keyBytes, dataBytes);
+        return Convert.ToHexString(hash).ToLowerInvariant();
     }
 }
