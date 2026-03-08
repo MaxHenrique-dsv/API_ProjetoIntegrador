@@ -45,7 +45,7 @@ public sealed class StravaController : ControllerBase
     /// </remarks>
     [HttpGet("login")]
     [Authorize]
-    [ProducesResponseType(StatusCodes.Status302Found)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public IActionResult Login()
     {
@@ -63,7 +63,7 @@ public sealed class StravaController : ControllerBase
         var authUrl = _stravaService.BuildAuthorizationUrl(state);
 
         _logger.LogInformation("Iniciando OAuth Strava para userId={UserId}", userId);
-        return Redirect(authUrl);
+        return Ok(new { url = authUrl });
     }
 
     // ──────────────────────────────────────────────────────────────────────────
