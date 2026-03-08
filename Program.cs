@@ -52,6 +52,11 @@ builder.Services.AddHttpClient<IStravaService, StravaService>(client =>
 
 builder.Services.AddScoped<IChallengeValidationService, ChallengeValidationService>();
 
+var httpClient = new HttpClient();
+var jwksUrl = $"{supabaseOptions.Url}/auth/v1/.well-known/jwks.json";
+var jwksJson = await httpClient.GetStringAsync(jwksUrl);
+var jwks = new JsonWebKeySet(jwksJson);
+
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -59,18 +64,17 @@ builder.Services
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(supabaseOptions.JwtSecret)),
+            IssuerSigningKeys = jwks.GetSigningKeys(), 
 
             ValidateIssuer = true,
-            ValidIssuer    = $"{supabaseOptions.Url}/auth/v1",
+            ValidIssuer = $"{supabaseOptions.Url}/auth/v1",
 
             ValidateAudience = true,
-            ValidAudience    = "authenticated",
+            ValidAudience = "authenticated",
 
-            ValidateLifetime         = true,
-            ClockSkew                = TimeSpan.FromSeconds(30),
-            NameClaimType            = "sub",
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromSeconds(30),
+            NameClaimType = "sub"
         };
 
         options.Events = new JwtBearerEvents

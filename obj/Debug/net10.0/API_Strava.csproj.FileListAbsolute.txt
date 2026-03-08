@@ -108,3 +108,4 @@ C:\Users\maxhv\OneDrive\Documentos\API_ProjetoIntegrador\obj\Debug\net10.0\refin
 C:\Users\maxhv\OneDrive\Documentos\API_ProjetoIntegrador\obj\Debug\net10.0\API_Strava.pdb
 C:\Users\maxhv\OneDrive\Documentos\API_ProjetoIntegrador\obj\Debug\net10.0\API_Strava.genruntimeconfig.cache
 C:\Users\maxhv\OneDrive\Documentos\API_ProjetoIntegrador\obj\Debug\net10.0\ref\API_Strava.dll
+C:\Users\maxhv\OneDrive\Documentos\API_ProjetoIntegrador\obj\Debug\net10.0\API_Strava.sourcelink.json
