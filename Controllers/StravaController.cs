@@ -149,7 +149,6 @@ public sealed class StravaController : ControllerBase
     /// Retorna as atividades recentes do usuário autenticado no Strava.
     /// </summary>
     [HttpGet("activities")]
-    [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -198,7 +197,6 @@ public sealed class StravaController : ControllerBase
     /// Remove a vinculação do Strava do usuário (apaga o token salvo).
     /// </summary>
     [HttpDelete("disconnect")]
-    [Authorize]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Disconnect(
         [FromServices] Supabase.Client supabase,
