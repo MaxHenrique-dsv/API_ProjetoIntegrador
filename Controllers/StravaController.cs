@@ -4,7 +4,6 @@ using Microsoft.Extensions.Options;
 using StravaIntegration.Exceptions;
 using StravaIntegration.Models.Options;
 using StravaIntegration.Services;
-using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -41,18 +40,10 @@ public sealed class StravaController : ControllerBase
 
     /// <summary>
     /// Inicia o fluxo OAuth do Strava.
-    /// 
-    /// ⚠️ POR QUE NÃO USAR [Authorize] AQUI:
-    /// Este endpoint é acessado via redirect de browser (link/botão no app).
-    /// Browsers não enviam o header "Authorization: Bearer ..." em redirecionamentos,
-    /// então qualquer [Authorize] resulta em 401 antes de chegar no Strava.
-    /// A segurança é garantida pelo HMAC assinado no `state`.
-    /// 
+    ///
     /// COMO USAR:
     /// GET /api/strava/login?userId={uuid-do-supabase}
-    /// O frontend obtém o userId do Supabase Auth e passa como query param.
     /// </summary>
-
     [HttpGet("login")]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status302Found)]
@@ -66,9 +57,6 @@ public sealed class StravaController : ControllerBase
                 example = "/api/strava/login?userId=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
             });
 
-        // ── Monta o state com HMAC para evitar CSRF / adulteração ─────────────
-        // state = Base64( userId + "." + timestamp ) + "." + HMAC-SHA256
-        // O callback valida o HMAC antes de processar o code.
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
         var payload = $"{userId}|{timestamp}";
         var hmac = ComputeHmac(payload, _stravaOptions.ClientSecret);
@@ -102,7 +90,6 @@ public sealed class StravaController : ControllerBase
         [FromQuery] string? scope,
         CancellationToken ct)
     {
-        // Usuário clicou "Negar" na página do Strava
         if (!string.IsNullOrEmpty(error))
         {
             _logger.LogWarning("Strava OAuth negado pelo usuário. Motivo: {Error}", error);
@@ -115,7 +102,6 @@ public sealed class StravaController : ControllerBase
             return Redirect($"{_appOptions.FrontendErrorUrl}?reason=invalid_callback");
         }
 
-        // ── Valida e extrai o userId do state ─────────────────────────────────
         if (!TryParseState(state, out var userId, out var stateError))
         {
             _logger.LogError("State inválido no callback Strava: {Error}", stateError);
@@ -143,22 +129,28 @@ public sealed class StravaController : ControllerBase
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // GET /api/strava/activities
+    // GET /api/strava/activities?userId={uuid}&count={n}
     // ──────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Retorna as atividades recentes do usuário autenticado no Strava.
+    /// Retorna as atividades recentes do usuário informado via query param.
     /// </summary>
     [HttpGet("activities")]
+    [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetRecentActivities(
+        [FromQuery] Guid userId,
         [FromQuery] int count = 10,
         CancellationToken ct = default)
     {
-        var userId = GetCurrentUserId();
-        if (userId == Guid.Empty) return Unauthorized();
+        if (userId == Guid.Empty)
+            return BadRequest(new
+            {
+                error = "userId é obrigatório.",
+                example = "/api/strava/activities?userId=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx&count=10"
+            });
 
         try
         {
@@ -185,27 +177,33 @@ public sealed class StravaController : ControllerBase
         }
         catch (StravaApiException ex)
         {
-            _logger.LogError(ex, "Erro ao buscar atividades Strava");
+            _logger.LogError(ex, "Erro ao buscar atividades Strava para userId={UserId}", userId);
             return StatusCode(ex.StatusCode ?? 500, new { error = ex.Message });
         }
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // DELETE /api/strava/disconnect
+    // DELETE /api/strava/disconnect?userId={uuid}
     // ──────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Remove a vinculação do Strava do usuário (apaga o token salvo).
+    /// Remove a vinculação do Strava do usuário informado via query param.
     /// </summary>
-
     [HttpDelete("disconnect")]
+    [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Disconnect(
+        [FromQuery] Guid userId,
         [FromServices] Supabase.Client supabase,
         CancellationToken ct)
     {
-        var userId = GetCurrentUserId();
-        if (userId == Guid.Empty) return Unauthorized();
+        if (userId == Guid.Empty)
+            return BadRequest(new
+            {
+                error = "userId é obrigatório.",
+                example = "/api/strava/disconnect?userId=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            });
 
         await supabase
             .From<Models.Entities.UserStravaToken>()
@@ -217,15 +215,9 @@ public sealed class StravaController : ControllerBase
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    private Guid GetCurrentUserId()
-    {
-        var raw = User.FindFirstValue(ClaimTypes.NameIdentifier)
-               ?? User.FindFirstValue("sub");
+    // Helpers
+    // ──────────────────────────────────────────────────────────────────────────
 
-        return Guid.TryParse(raw, out var id) ? id : Guid.Empty;
-    }
-
-    // ── Valida o state assinado com HMAC e extrai o userId ───────────────────
     private bool TryParseState(string state, out Guid userId, out string? error)
     {
         userId = Guid.Empty;
@@ -236,7 +228,6 @@ public sealed class StravaController : ControllerBase
             var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(state));
             var parts = decoded.Split('|');
 
-            // Espera: userId | timestamp | hmac
             if (parts.Length != 3)
             {
                 error = "Formato inválido (esperado 3 partes).";
@@ -247,7 +238,6 @@ public sealed class StravaController : ControllerBase
             var timestamp = parts[1];
             var receivedHmac = parts[2];
 
-            // Valida HMAC
             var payload = $"{userIdStr}|{timestamp}";
             var expectedHmac = ComputeHmac(payload, _stravaOptions.ClientSecret);
 
@@ -259,7 +249,6 @@ public sealed class StravaController : ControllerBase
                 return false;
             }
 
-            // Valida expiração do state (15 minutos para o usuário autorizar)
             var issuedAt = DateTimeOffset.FromUnixTimeSeconds(long.Parse(timestamp));
             if (DateTimeOffset.UtcNow - issuedAt > TimeSpan.FromMinutes(15))
             {
