@@ -51,6 +51,7 @@ builder.Services.AddHttpClient<IStravaService, StravaService>(client =>
 });
 
 builder.Services.AddScoped<IChallengeValidationService, ChallengeValidationService>();
+builder.Services.AddScoped<IJoinChallengeService, JoinChallengeService>();
 
 var httpClient = new HttpClient();
 var jwksUrl = $"{supabaseOptions.Url}/auth/v1/.well-known/jwks.json";

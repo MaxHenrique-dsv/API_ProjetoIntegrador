@@ -9,4 +9,11 @@ public interface IStravaService
     Task<StravaConnectResult> ExchangeCodeAndSaveTokenAsync(string code, Guid userId, CancellationToken ct = default);
     Task<IReadOnlyList<StravaActivity>> GetRecentActivitiesAsync(Guid userId, int count = 10, CancellationToken ct = default);
     Task<StravaActivity> GetActivityByIdAsync(Guid userId, long activityId, CancellationToken ct = default);
+    
+    Task<IReadOnlyList<StravaActivity>> GetActivitiesByDateRangeAsync(
+    Guid userId,
+    DateTimeOffset from,
+    DateTimeOffset to,
+    CancellationToken ct = default);
 }
+

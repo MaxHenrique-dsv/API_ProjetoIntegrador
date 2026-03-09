@@ -19,14 +19,54 @@ public sealed class ChallengeController : ControllerBase
     private readonly IChallengeValidationService _validationService;
     private readonly ILogger<ChallengeController> _logger;
 
-    public ChallengeController(
-        IChallengeValidationService validationService,
-        ILogger<ChallengeController> logger)
-    {
-        _validationService = validationService;
-        _logger = logger;
-    }
+private readonly IJoinChallengeService _joinService; // ← campo novo
 
+public ChallengeController(
+    IChallengeValidationService validationService,
+    IJoinChallengeService joinService,             // ← parâmetro novo
+    ILogger<ChallengeController> logger)
+{
+    _validationService = validationService;
+    _joinService       = joinService;              // ← atribuição nova
+    _logger            = logger;
+}
+
+
+    [HttpPost("{challengeId:guid}/join")]
+[ProducesResponseType(StatusCodes.Status200OK)]
+[ProducesResponseType(StatusCodes.Status404NotFound)]
+public async Task<IActionResult> JoinChallenge(
+    Guid challengeId,
+    CancellationToken ct = default)
+{
+    var userId = GetCurrentUserId();
+    if (userId == Guid.Empty) return Unauthorized();
+
+    try
+    {
+        var result = await _joinService.JoinAndSyncActivitiesAsync(userId, challengeId, ct);
+
+        return Ok(new
+        {
+            result.ChallengeId,
+            result.ChallengeTitle,
+            period = new { start = result.PeriodStart, end = result.PeriodEnd },
+            result.ActivitiesSynced,
+            message = result.ActivitiesSynced > 0
+                ? $"{result.ActivitiesSynced} corrida(s) sincronizada(s) do Strava."
+                : "Nenhuma corrida encontrada no período do desafio.",
+            activities = result.Activities
+        });
+    }
+    catch (ChallengeNotFoundException ex)
+    {
+        return NotFound(new { error = ex.Message });
+    }
+    catch (TokenNotFoundException ex)
+    {
+        return NotFound(new { error = ex.Message, hint = "Conecte o Strava em /api/strava/login" });
+    }
+}
     // ──────────────────────────────────────────────────────────────────────────
     // POST /api/challenges/{challengeId}/sync
     // ──────────────────────────────────────────────────────────────────────────
@@ -150,4 +190,6 @@ public sealed class ChallengeController : ControllerBase
 
         return Guid.TryParse(raw, out var id) ? id : Guid.Empty;
     }
+    
 }
+

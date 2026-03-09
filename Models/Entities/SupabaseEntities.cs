@@ -16,20 +16,45 @@ public sealed class Challenge : BaseModel
     [Column("title")]
     public string Title { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Examples: "distance_km", "pace_min_per_km", "elevation_m", "duration_min"
-    /// </summary>
     [Column("challenge_type")]
     public string ChallengeType { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Numeric target: distance in km, pace in sec/km, elevation in meters, etc.
-    /// </summary>
     [Column("target_value")]
     public double TargetValue { get; set; }
+
+    [Column("start_date")]
+    public DateTimeOffset StartDate { get; set; }
+
+    [Column("end_date")]
+    public DateTimeOffset EndDate { get; set; }
 }
 
-// ─── rewards ──────────────────────────────────────────────────────────────────
+// ─── user_activities ─────────────────────────────────────────────────────────
+[Table("user_activities")]
+public sealed class UserActivity : BaseModel
+{
+    [PrimaryKey("id", false)]
+    public long Id { get; set; }
+
+    [Column("user_id")]
+    public Guid UserId { get; set; }
+
+    [Column("challenge_id")]
+    public Guid ChallengeId { get; set; }
+
+    [Column("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [Column("distance_km")]
+    public double DistanceKm { get; set; }
+
+    [Column("moving_time_minutes")]
+    public double MovingTimeMinutes { get; set; }
+
+    [Column("start_date")]
+    public DateTimeOffset StartDate { get; set; }
+}
+
 [Table("rewards")]
 public sealed class Reward : BaseModel
 {
@@ -43,7 +68,6 @@ public sealed class Reward : BaseModel
     public Guid ChallengeId { get; set; }
 }
 
-// ─── reward_history ───────────────────────────────────────────────────────────
 [Table("reward_history")]
 public sealed class RewardHistory : BaseModel
 {
@@ -66,7 +90,6 @@ public sealed class RewardHistory : BaseModel
     public string ProofUrl { get; set; } = string.Empty;
 }
 
-// ─── user_strava_tokens (tabela de suporte – crie no Supabase) ────────────────
 [Table("user_strava_tokens")]
 public sealed class UserStravaToken : BaseModel
 {
@@ -85,7 +108,6 @@ public sealed class UserStravaToken : BaseModel
     [Column("refresh_token")]
     public string RefreshToken { get; set; } = string.Empty;
 
-    /// <summary>Unix timestamp de expiração do access token.</summary>
     [Column("expires_at")]
     public long ExpiresAt { get; set; }
 

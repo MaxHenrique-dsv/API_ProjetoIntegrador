@@ -179,7 +179,56 @@ public sealed class StravaService : IStravaService
         return await response.Content.ReadFromJsonAsync<StravaActivity>(JsonOpts, ct)
             ?? throw new StravaApiException("Resposta de atividade veio nula.");
     }
+public async Task<IReadOnlyList<StravaActivity>> GetActivitiesByDateRangeAsync(
+    Guid userId,
+    DateTimeOffset from,
+    DateTimeOffset to,
+    CancellationToken ct = default)
+{
+    var accessToken = await GetValidAccessTokenAsync(userId, ct);
 
+    var afterUnix  = from.ToUnixTimeSeconds();
+    var beforeUnix = to.ToUnixTimeSeconds();
+
+    var allActivities = new List<StravaActivity>();
+    var page = 1;
+    const int pageSize = 50;
+
+    while (true)
+    {
+        var url = $"{_options.ApiBaseUrl}/athlete/activities" +
+                  $"?after={afterUnix}&before={beforeUnix}" +
+                  $"&per_page={pageSize}&page={page}";
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await _httpClient.SendAsync(request, ct);
+
+        if (!response.IsSuccessStatusCode)
+            throw new StravaApiException(
+                $"Erro ao buscar atividades: HTTP {(int)response.StatusCode}",
+                (int)response.StatusCode);
+
+        var pageActivities = await response.Content
+            .ReadFromJsonAsync<List<StravaActivity>>(JsonOpts, ct) ?? [];
+
+        if (pageActivities.Count == 0) break;
+
+        var runs = pageActivities
+            .Where(a => a.SportType.Contains("Run", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        allActivities.AddRange(runs);
+
+        if (pageActivities.Count < pageSize) break;
+
+        page++;
+    }
+
+    return allActivities;
+}
     // ──────────────────────────────────────────────────────────────────────────
     // Helpers Privados
     // ──────────────────────────────────────────────────────────────────────────
@@ -269,3 +318,4 @@ public sealed class StravaService : IStravaService
         return record ?? throw new TokenNotFoundException(userId);
     }
 }
+
