@@ -16,9 +16,22 @@ public sealed class Challenge : BaseModel
     [Column("title")]
     public string Title { get; set; } = string.Empty;
 
+    [Column("description")]
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// Tipos suportados vindos do Supabase:
+    ///   "corrida"  → distância mínima em km  (target_value = km exigidos, ex: 10.0)
+    ///   "pace"     → pace máximo em min/km   (target_value = minutos decimais, ex: 6.5 = 6:30/km)
+    /// </summary>
     [Column("challenge_type")]
     public string ChallengeType { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Valor alvo numérico conforme o challenge_type:
+    ///   "corrida" → quilômetros mínimos  (ex: 10.0 = deve correr ao menos 10 km)
+    ///   "pace"    → pace máximo em min/km (ex: 6.5 = 6:30/km — deve correr igual ou mais rápido)
+    /// </summary>
     [Column("target_value")]
     public double TargetValue { get; set; }
 
@@ -27,9 +40,16 @@ public sealed class Challenge : BaseModel
 
     [Column("end_date")]
     public DateTimeOffset EndDate { get; set; }
+
+    /// <summary>"all" ou "specific" — conforme constraint do Supabase.</summary>
+    [Column("target_audience")]
+    public string TargetAudience { get; set; } = "all";
+
+    [Column("created_at")]
+    public DateTimeOffset? CreatedAt { get; set; }
 }
 
-// ─── user_activities ─────────────────────────────────────────────────────────
+// ─── user_activities ──────────────────────────────────────────────────────────
 [Table("user_activities")]
 public sealed class UserActivity : BaseModel
 {
@@ -55,6 +75,7 @@ public sealed class UserActivity : BaseModel
     public DateTimeOffset StartDate { get; set; }
 }
 
+// ─── rewards ──────────────────────────────────────────────────────────────────
 [Table("rewards")]
 public sealed class Reward : BaseModel
 {
@@ -68,6 +89,7 @@ public sealed class Reward : BaseModel
     public Guid ChallengeId { get; set; }
 }
 
+// ─── reward_history ───────────────────────────────────────────────────────────
 [Table("reward_history")]
 public sealed class RewardHistory : BaseModel
 {
@@ -90,6 +112,7 @@ public sealed class RewardHistory : BaseModel
     public string ProofUrl { get; set; } = string.Empty;
 }
 
+// ─── user_strava_tokens ───────────────────────────────────────────────────────
 [Table("user_strava_tokens")]
 public sealed class UserStravaToken : BaseModel
 {

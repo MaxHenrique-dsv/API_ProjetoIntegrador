@@ -21,12 +21,12 @@ public sealed class ChallengeValidationService : IChallengeValidationService
         ILogger<ChallengeValidationService> logger)
     {
         _stravaService = stravaService;
-        _supabase = supabase;
-        _logger = logger;
+        _supabase      = supabase;
+        _logger        = logger;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Sync & Validate: busca N atividades recentes e valida cada uma
+    // SyncAndValidate — busca atividades recentes e valida contra o desafio
     // ──────────────────────────────────────────────────────────────────────────
 
     public async Task<ChallengeValidationResult> SyncAndValidateAsync(
@@ -34,70 +34,77 @@ public sealed class ChallengeValidationService : IChallengeValidationService
         CancellationToken ct = default)
     {
         _logger.LogInformation(
-            "Iniciando sync para UserId={UserId}, ChallengeId={ChallengeId}",
+            "Iniciando sync. UserId={UserId}, ChallengeId={ChallengeId}",
             request.UserId, request.ChallengeId);
 
         var challenge = await FetchChallengeAsync(request.ChallengeId, ct);
         var reward    = await FetchRewardAsync(request.ChallengeId, ct);
 
-        // Verifica se o usuário já ganhou este prêmio
+        _logger.LogInformation(
+            "Desafio: '{Title}' | Tipo: {Type} | Meta: {Target} | Período: {Start:dd/MM} → {End:dd/MM}",
+            challenge.Title, challenge.ChallengeType, challenge.TargetValue,
+            challenge.StartDate, challenge.EndDate);
+
+        // Verifica duplicidade antes de chamar o Strava
         if (await AlreadyRewardedAsync(request.UserId, reward.Id, ct))
         {
-            _logger.LogInformation(
-                "Usuário {UserId} já possui o prêmio {RewardId}. Ignorando.",
-                request.UserId, reward.Id);
-
-            return new ChallengeValidationResult(
-                ChallengeCompleted: false,
-                RewardHistoryId: null,
-                ChallengeTitle: challenge.Title,
-                FailureReason: "Prêmio já concedido anteriormente.");
+            _logger.LogInformation("Usuário {UserId} já possui o prêmio {RewardId}.", request.UserId, reward.Id);
+            return ChallengeValidationResult.AlreadyRewarded(challenge.Title);
         }
 
         var activities = await _stravaService.GetRecentActivitiesAsync(
             request.UserId, request.RecentCount, ct);
 
-        // Filtra apenas corridas (Run / TrailRun / VirtualRun)
         var runs = activities
             .Where(a => a.SportType.Contains("Run", StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-        _logger.LogInformation("{RunCount} corridas encontradas nas últimas {Total} atividades.",
-            runs.Count, activities.Count);
+        _logger.LogInformation("{Runs} corridas nas últimas {Total} atividades.", runs.Count, activities.Count);
 
-        foreach (var activity in runs)
+        // ── Valida cada corrida e registra detalhes de todas ─────────────────
+        var allDetails = new List<(StravaActivity Activity, ActivityValidationDetail Detail)>();
+
+        foreach (var run in runs)
         {
-            if (!MeetsChallenge(activity, challenge, out var failReason))
-            {
-                _logger.LogDebug(
-                    "Atividade {ActivityId} não cumpre desafio: {Reason}",
-                    activity.Id, failReason);
-                continue;
-            }
+            var detail = ChallengeValidator.Validate(run, challenge);
+            allDetails.Add((run, detail));
 
-            // ✅ Primeiro match → concede o prêmio
-            var historyId = await GrantRewardAsync(
-                request.UserId, reward.Id, activity.StravaUrl, ct);
+            _logger.LogDebug(
+                "Atividade {Id} ({Name}): passou={Passed} | " +
+                "distância={Dist:F2}km | pace={Pace}/km | progresso={Progress}%",
+                run.Id, run.Name, detail.Passed,
+                detail.ActualDistanceKm, detail.ActualPaceFormatted, detail.ProgressPercent);
+
+            if (!detail.Passed) continue;
+
+            // ✅ Primeira atividade aprovada → concede o prêmio
+            var historyId = await GrantRewardAsync(request.UserId, reward.Id, run.StravaUrl, ct);
 
             _logger.LogInformation(
-                "✅ Prêmio concedido! UserId={UserId}, RewardHistoryId={HistoryId}, ActivityId={ActivityId}",
-                request.UserId, historyId, activity.Id);
+                "✅ Prêmio concedido! UserId={UserId} | RewardHistoryId={HId} | ActivityId={AId}",
+                request.UserId, historyId, run.Id);
 
-            return new ChallengeValidationResult(
-                ChallengeCompleted: true,
-                RewardHistoryId: historyId,
-                ChallengeTitle: challenge.Title);
+            return ChallengeValidationResult.Success(
+                challenge: challenge,
+                rewardHistoryId: historyId,
+                winningActivity: run,
+                winningDetail: detail);
         }
 
-        return new ChallengeValidationResult(
-            ChallengeCompleted: false,
-            RewardHistoryId: null,
-            ChallengeTitle: challenge.Title,
-            FailureReason: "Nenhuma atividade recente cumpre os requisitos do desafio.");
+        // Nenhuma atividade passou — retorna detalhes da melhor tentativa
+        var best = allDetails
+            .OrderByDescending(x => x.Detail.ProgressPercent)
+            .FirstOrDefault();
+
+        return ChallengeValidationResult.Failed(
+            challenge: challenge,
+            bestActivity: best.Activity,
+            bestDetail: best.Detail,
+            totalRunsChecked: runs.Count);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Validate Single Activity: valida atividade específica por ID
+    // ValidateSingleActivity — valida uma atividade específica por ID
     // ──────────────────────────────────────────────────────────────────────────
 
     public async Task<ChallengeValidationResult> ValidateSingleActivityAsync(
@@ -105,102 +112,34 @@ public sealed class ChallengeValidationService : IChallengeValidationService
         CancellationToken ct = default)
     {
         _logger.LogInformation(
-            "Validando atividade {ActivityId} para UserId={UserId}, ChallengeId={ChallengeId}",
+            "Validando atividade {ActivityId}. UserId={UserId}, ChallengeId={ChallengeId}",
             request.StravaActivityId, request.UserId, request.ChallengeId);
 
         var challenge = await FetchChallengeAsync(request.ChallengeId, ct);
         var reward    = await FetchRewardAsync(request.ChallengeId, ct);
 
         if (await AlreadyRewardedAsync(request.UserId, reward.Id, ct))
-        {
-            return new ChallengeValidationResult(
-                ChallengeCompleted: false,
-                RewardHistoryId: null,
-                ChallengeTitle: challenge.Title,
-                FailureReason: "Prêmio já concedido anteriormente.");
-        }
+            return ChallengeValidationResult.AlreadyRewarded(challenge.Title);
 
         var activity = await _stravaService.GetActivityByIdAsync(
             request.UserId, request.StravaActivityId, ct);
 
-        if (!MeetsChallenge(activity, challenge, out var failReason))
-        {
-            return new ChallengeValidationResult(
-                ChallengeCompleted: false,
-                RewardHistoryId: null,
-                ChallengeTitle: challenge.Title,
-                FailureReason: failReason);
-        }
+        var detail = ChallengeValidator.Validate(activity, challenge);
 
-        var historyId = await GrantRewardAsync(
-            request.UserId, reward.Id, activity.StravaUrl, ct);
+        _logger.LogInformation(
+            "Resultado: passou={Passed} | dist={Dist:F2}km | pace={Pace}/km | progresso={Progress}%",
+            detail.Passed, detail.ActualDistanceKm, detail.ActualPaceFormatted, detail.ProgressPercent);
 
-        return new ChallengeValidationResult(
-            ChallengeCompleted: true,
-            RewardHistoryId: historyId,
-            ChallengeTitle: challenge.Title);
+        if (!detail.Passed)
+            return ChallengeValidationResult.Failed(challenge, activity, detail, totalRunsChecked: 1);
+
+        var historyId = await GrantRewardAsync(request.UserId, reward.Id, activity.StravaUrl, ct);
+
+        return ChallengeValidationResult.Success(challenge, historyId, activity, detail);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Lógica de Validação – regras por tipo de desafio
-    // ──────────────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Retorna true se a atividade cumpre o desafio.
-    /// </summary>
-    private static bool MeetsChallenge(
-        StravaActivity activity,
-        Challenge challenge,
-        out string? failReason)
-    {
-        failReason = null;
-
-        switch (challenge.ChallengeType.ToLowerInvariant())
-        {
-            // Desafio de distância mínima em km
-            case "distance_km":
-                if (activity.DistanceKm >= challenge.TargetValue)
-                    return true;
-
-                failReason = $"Distância {activity.DistanceKm:F2} km abaixo de {challenge.TargetValue} km.";
-                return false;
-
-            // Desafio de pace máximo (segundos/km) — menor é melhor
-            // target_value = pace máximo permitido em seg/km
-            case "pace_min_per_km":
-                if (activity.PaceSecPerKm <= challenge.TargetValue)
-                    return true;
-
-                var actualPace  = TimeSpan.FromSeconds(activity.PaceSecPerKm);
-                var targetPace  = TimeSpan.FromSeconds(challenge.TargetValue);
-                failReason = $"Pace {actualPace:mm\\:ss}/km acima do limite {targetPace:mm\\:ss}/km.";
-                return false;
-
-            // Desafio de ganho de elevação mínimo em metros
-            case "elevation_m":
-                if (activity.TotalElevationGain >= challenge.TargetValue)
-                    return true;
-
-                failReason = $"Elevação {activity.TotalElevationGain:F0} m abaixo de {challenge.TargetValue} m.";
-                return false;
-
-            // Desafio de duração mínima em minutos
-            case "duration_min":
-                var movingMin = activity.MovingTime / 60.0;
-                if (movingMin >= challenge.TargetValue)
-                    return true;
-
-                failReason = $"Duração {movingMin:F1} min abaixo de {challenge.TargetValue} min.";
-                return false;
-
-            default:
-                failReason = $"Tipo de desafio desconhecido: '{challenge.ChallengeType}'.";
-                return false;
-        }
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Supabase – Queries
+    // Supabase helpers
     // ──────────────────────────────────────────────────────────────────────────
 
     private async Task<Challenge> FetchChallengeAsync(Guid challengeId, CancellationToken ct)
@@ -233,20 +172,10 @@ public sealed class ChallengeValidationService : IChallengeValidationService
         return existing is not null;
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // Supabase – Inserção em reward_history
-    // ──────────────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Insere o registro de recompensa na tabela reward_history do Supabase.
-    /// </summary>
     private async Task<Guid> GrantRewardAsync(
-        Guid userId,
-        Guid rewardId,
-        string stravaActivityUrl,
-        CancellationToken ct)
+        Guid userId, Guid rewardId, string stravaActivityUrl, CancellationToken ct)
     {
-        var historyRecord = new RewardHistory
+        var record = new RewardHistory
         {
             Id        = Guid.NewGuid(),
             RewardId  = rewardId,
@@ -256,13 +185,9 @@ public sealed class ChallengeValidationService : IChallengeValidationService
             ProofUrl  = stravaActivityUrl
         };
 
-        var response = await _supabase
-            .From<RewardHistory>()
-            .Insert(historyRecord);
+        var response = await _supabase.From<RewardHistory>().Insert(record);
 
-        var inserted = response.Models.FirstOrDefault()
+        return response.Models.FirstOrDefault()?.Id
             ?? throw new InvalidOperationException("Falha ao inserir reward_history no Supabase.");
-
-        return inserted.Id;
     }
 }

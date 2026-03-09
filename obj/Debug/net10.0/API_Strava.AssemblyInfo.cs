@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("API_Strava")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+05b2629e76068fe7da4712be8b3edd8fed2a051e")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2103bab0300e0cb374f8bd26ae1dfe8d8dafa0db")]
 [assembly: System.Reflection.AssemblyProductAttribute("API_Strava")]
 [assembly: System.Reflection.AssemblyTitleAttribute("API_Strava")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

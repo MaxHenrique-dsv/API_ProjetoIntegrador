@@ -7,9 +7,6 @@ using System.Security.Claims;
 
 namespace StravaIntegration.Controllers;
 
-/// <summary>
-/// Endpoints para validação de desafios e liberação de prêmios.
-/// </summary>
 [ApiController]
 [Route("api/challenges")]
 [Authorize]
@@ -19,15 +16,15 @@ public sealed class ChallengeController : ControllerBase
     private readonly IChallengeValidationService _validationService;
     private readonly ILogger<ChallengeController> _logger;
 
-private readonly IJoinChallengeService _joinService; // ← campo novo
+private readonly IJoinChallengeService _joinService;
 
 public ChallengeController(
     IChallengeValidationService validationService,
-    IJoinChallengeService joinService,             // ← parâmetro novo
+    IJoinChallengeService joinService,
     ILogger<ChallengeController> logger)
 {
     _validationService = validationService;
-    _joinService       = joinService;              // ← atribuição nova
+    _joinService       = joinService;
     _logger            = logger;
 }
 
@@ -67,15 +64,7 @@ public async Task<IActionResult> JoinChallenge(
         return NotFound(new { error = ex.Message, hint = "Conecte o Strava em /api/strava/login" });
     }
 }
-    // ──────────────────────────────────────────────────────────────────────────
-    // POST /api/challenges/{challengeId}/sync
-    // ──────────────────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Busca as atividades recentes do usuário no Strava e verifica
-    /// se alguma delas completa o desafio. Concede o prêmio automaticamente
-    /// se o critério for atingido.
-    /// </summary>
     [HttpPost("{challengeId:guid}/sync")]
     [ProducesResponseType(typeof(ChallengeValidationResult), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
