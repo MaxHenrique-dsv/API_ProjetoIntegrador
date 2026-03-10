@@ -1,31 +1,25 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Max\\Documents\\GitHub\\API_ProjetoIntegrador\\API_Strava.csproj": {}
+    "C:\\Users\\maxhv\\OneDrive\\Documentos\\API_ProjetoIntegrador\\API_Strava.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Max\\Documents\\GitHub\\API_ProjetoIntegrador\\API_Strava.csproj": {
+    "C:\\Users\\maxhv\\OneDrive\\Documentos\\API_ProjetoIntegrador\\API_Strava.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Max\\Documents\\GitHub\\API_ProjetoIntegrador\\API_Strava.csproj",
+        "projectUniqueName": "C:\\Users\\maxhv\\OneDrive\\Documentos\\API_ProjetoIntegrador\\API_Strava.csproj",
         "projectName": "API_Strava",
-        "projectPath": "C:\\Users\\Max\\Documents\\GitHub\\API_ProjetoIntegrador\\API_Strava.csproj",
-        "packagesPath": "C:\\Users\\Max\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Max\\Documents\\GitHub\\API_ProjetoIntegrador\\obj\\",
+        "projectPath": "C:\\Users\\maxhv\\OneDrive\\Documentos\\API_ProjetoIntegrador\\API_Strava.csproj",
+        "packagesPath": "C:\\Users\\maxhv\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\maxhv\\OneDrive\\Documentos\\API_ProjetoIntegrador\\obj\\",
         "projectStyle": "PackageReference",
-        "fallbackFolders": [
-          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-        ],
         "configFilePaths": [
-          "C:\\Users\\Max\\AppData\\Roaming\\NuGet\\NuGet.Config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+          "C:\\Users\\maxhv\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net10.0"
         ],
         "sources": {
-          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {

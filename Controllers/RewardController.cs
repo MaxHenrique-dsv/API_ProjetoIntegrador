@@ -6,7 +6,6 @@ namespace StravaIntegration.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize] // Garante que a rota só é acedida com um token JWT do Supabase válido
 public class RewardController : ControllerBase
 {
     private readonly IRewardService _rewardService;
