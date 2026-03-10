@@ -73,7 +73,7 @@ builder.Services.AddHttpClient<IStravaService, StravaService>(client =>
 
 builder.Services.AddScoped<IChallengeValidationService, ChallengeValidationService>();
 builder.Services.AddScoped<IJoinChallengeService, JoinChallengeService>();
-
+builder.Services.AddScoped<IRewardService, RewardService>();
 // ═══════════════════════════════════════════════════════════════════════════════
 // 5. AUTENTICAÇÃO – Valida JWT do Supabase (HS256 e ES256)
 // ═══════════════════════════════════════════════════════════════════════════════

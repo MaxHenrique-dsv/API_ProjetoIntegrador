@@ -1,10 +1,6 @@
 {
   "version": 2,
-<<<<<<< HEAD
   "dgSpecHash": "N1+Urrp4MRw=",
->>>>>>> 5415bae48336911b1ea9b803d6780731f89e99e7
-=======
-
   "success": true,
   "projectFilePath": "C:\\Users\\Max\\Documents\\GitHub\\API_ProjetoIntegrador\\API_Strava.csproj",
   "expectedPackageFiles": [
@@ -35,5 +31,15 @@
     "C:\\Users\\Max\\.nuget\\packages\\system.reactive\\5.0.0\\system.reactive.5.0.0.nupkg.sha512",
     "C:\\Users\\Max\\.nuget\\packages\\websocket.client\\4.6.1\\websocket.client.4.6.1.nupkg.sha512"
   ],
-  "logs": []
+  "logs": [
+    {
+      "code": "Undefined",
+      "level": "Warning",
+      "message": "Problem reading the cache file C:\\Users\\Max\\Documents\\GitHub\\API_ProjetoIntegrador\\obj\\project.nuget.cache : '<' is an invalid start of a property name. Expected a '\"'. Path: $ | LineNumber: 2 | BytePositionInLine: 0.",
+      "projectPath": "C:\\Users\\Max\\Documents\\GitHub\\API_ProjetoIntegrador\\API_Strava.csproj",
+      "warningLevel": 1,
+      "filePath": "C:\\Users\\Max\\Documents\\GitHub\\API_ProjetoIntegrador\\API_Strava.csproj",
+      "targetGraphs": []
+    }
+  ]
 }
