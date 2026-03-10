@@ -16,7 +16,7 @@ public sealed class ChallengeController : ControllerBase
     private readonly IJoinChallengeService _joinService;
     private readonly ILogger<ChallengeController> _logger;
 
-    public ChallengeController(
+     public ChallengeController(
         IChallengeValidationService validationService,
         IJoinChallengeService joinService,
         ILogger<ChallengeController> logger)
@@ -31,7 +31,7 @@ public sealed class ChallengeController : ControllerBase
     // ──────────────────────────────────────────────────────────────────────────
 
     [HttpPost("{challengeId:guid}/join")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> JoinChallenge(
@@ -39,7 +39,7 @@ public sealed class ChallengeController : ControllerBase
         [FromQuery] Guid userId,
         CancellationToken ct = default)
     {
-        if (userId == Guid.Empty)
+         if (userId == Guid.Empty)
             return BadRequest(new
             {
                 error = "userId é obrigatório.",

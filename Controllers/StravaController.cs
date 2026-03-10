@@ -4,7 +4,6 @@ using Microsoft.Extensions.Options;
 using StravaIntegration.Exceptions;
 using StravaIntegration.Models.Options;
 using StravaIntegration.Services;
-using System.Security.Claims; 
 using System.Security.Cryptography;
 using System.Text;
 
@@ -22,28 +21,19 @@ public sealed class StravaController : ControllerBase
     private readonly AppOptions _appOptions;
     private readonly StravaOptions _stravaOptions;
     private readonly ILogger<StravaController> _logger;
-    private readonly HttpClient _httpClient;
 
     public StravaController(
         IStravaService stravaService,
         IOptions<AppOptions> appOptions,
         IOptions<StravaOptions> stravaOptions,
-        ILogger<StravaController> logger,
-        HttpClient httpClient)
+        ILogger<StravaController> logger)
     {
         _stravaService = stravaService;
         _appOptions = appOptions.Value;
         _stravaOptions = stravaOptions.Value;
         _logger = logger;
-        _httpClient    = httpClient;
     }
-private Guid GetCurrentUserId()
-    {
-        var raw = User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier)
-               ?? User.FindFirstValue("sub");
 
-        return Guid.TryParse(raw, out var id) ? id : Guid.Empty;
-    }
     // ──────────────────────────────────────────────────────────────────────────
     // GET /api/strava/login?userId={supabase-user-uuid}
     // ──────────────────────────────────────────────────────────────────────────
@@ -199,106 +189,30 @@ private Guid GetCurrentUserId()
     /// <summary>
     /// Remove a vinculação do Strava do usuário informado via query param.
     /// </summary>
-[HttpDelete("disconnect")]
-[ProducesResponseType(StatusCodes.Status204NoContent)]
-[ProducesResponseType(StatusCodes.Status404NotFound)]
-public async Task<IActionResult> Disconnect(
-    [FromServices] Supabase.Client supabase,
-    CancellationToken ct)
-{
-    var userId = GetCurrentUserId();
-    if (userId == Guid.Empty) return Unauthorized();
-
-    // ── 1. Busca o token salvo ────────────────────────────────────────────
-    var tokenRecord = await supabase
-        .From<Models.Entities.UserStravaToken>()
-        .Where(t => t.UserId == userId)
-        .Single();
-
-    if (tokenRecord is null)
+    [HttpDelete("disconnect")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Disconnect(
+        [FromQuery] Guid userId,
+        [FromServices] Supabase.Client supabase,
+        CancellationToken ct)
     {
-        _logger.LogWarning("Disconnect: nenhum token encontrado para userId={UserId}", userId);
-        return NotFound(new { error = "Conta Strava não está conectada." });
-    }
-
-    // ── 2. Renova o token se estiver expirado ─────────────────────────────
-    // O Strava IGNORA silenciosamente a revogação de tokens expirados.
-    // Por isso precisamos garantir um token válido antes do deauthorize.
-    var accessToken = tokenRecord.AccessToken;
-    var nowUnix     = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-
-    if (tokenRecord.ExpiresAt <= nowUnix + 60)
-    {
-        _logger.LogInformation(
-            "Token expirado antes do disconnect. Renovando para userId={UserId}", userId);
-        try
-        {
-            var refreshContent = new FormUrlEncodedContent(new Dictionary<string, string>
+        if (userId == Guid.Empty)
+            return BadRequest(new
             {
-                ["client_id"]     = _stravaOptions.ClientId,
-                ["client_secret"] = _stravaOptions.ClientSecret,
-                ["refresh_token"] = tokenRecord.RefreshToken,
-                ["grant_type"]    = "refresh_token"
+                error = "userId é obrigatório.",
+                example = "/api/strava/disconnect?userId=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
             });
 
-            var refreshResponse = await _httpClient.PostAsync(
-                _stravaOptions.TokenUrl, refreshContent, ct);
+        await supabase
+            .From<Models.Entities.UserStravaToken>()
+            .Where(t => t.UserId == userId)
+            .Delete();
 
-            if (refreshResponse.IsSuccessStatusCode)
-            {
-                var refreshed = await refreshResponse.Content
-                    .ReadFromJsonAsync<Models.Strava.StravaTokenResponse>(
-                        new System.Text.Json.JsonSerializerOptions(
-                            System.Text.Json.JsonSerializerDefaults.Web), ct);
-
-                if (refreshed is not null)
-                    accessToken = refreshed.AccessToken;
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex,
-                "Erro ao renovar token antes do disconnect. UserId={UserId}", userId);
-        }
+        _logger.LogInformation("Token Strava removido para userId={UserId}", userId);
+        return NoContent();
     }
-
-    // ── 3. Revoga o acesso no Strava ──────────────────────────────────────
-    try
-    {
-        var deauthorizeContent = new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["access_token"] = accessToken
-        });
-
-        var response = await _httpClient.PostAsync(
-            "https://www.strava.com/oauth/deauthorize", deauthorizeContent, ct);
-
-        if (response.IsSuccessStatusCode)
-            _logger.LogInformation(
-                "✅ Acesso revogado no Strava. UserId={UserId}", userId);
-        else
-        {
-            var body = await response.Content.ReadAsStringAsync(ct);
-            _logger.LogWarning(
-                "Strava deauthorize retornou {Status}. Body: {Body}",
-                response.StatusCode, body);
-        }
-    }
-    catch (Exception ex)
-    {
-        _logger.LogWarning(ex,
-            "Erro ao chamar deauthorize no Strava. UserId={UserId}", userId);
-    }
-
-    // ── 4. Remove o token do Supabase (sempre) ────────────────────────────
-    await supabase
-        .From<Models.Entities.UserStravaToken>()
-        .Where(t => t.UserId == userId)
-        .Delete();
-
-    _logger.LogInformation("Strava desconectado. UserId={UserId}", userId);
-    return NoContent();
-}
 
     // ──────────────────────────────────────────────────────────────────────────
     // Helpers
