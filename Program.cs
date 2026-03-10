@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using StravaIntegration.Controllers;
 using StravaIntegration.Middleware;
 using StravaIntegration.Models.Options;
 using StravaIntegration.Services;
@@ -30,6 +31,7 @@ builder.Services
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
+builder.Services.AddHttpClient<StravaController>();
 // ═══════════════════════════════════════════════════════════════════════════════
 // 2. SUPABASE CLIENT (supabase-csharp)
 // ═══════════════════════════════════════════════════════════════════════════════
