@@ -15,5 +15,6 @@ public interface IStravaService
     DateTimeOffset from,
     DateTimeOffset to,
     CancellationToken ct = default);
+    Task<string> GetAveragePaceOfLastRunsAsync(Guid userId, int runCount = 10, CancellationToken ct = default);
 }
 

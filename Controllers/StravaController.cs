@@ -278,4 +278,22 @@ public sealed class StravaController : ControllerBase
         var hash = HMACSHA256.HashData(keyBytes, dataBytes);
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
+    [HttpGet("average-pace")]
+public async Task<IActionResult> GetAveragePace()
+{
+    var userIdClaim = User.FindFirst("sub")?.Value;
+    if (!Guid.TryParse(userIdClaim, out var userId))
+        return Unauthorized();
+
+    try
+    {
+        string avgPace = await _stravaService.GetAveragePaceOfLastRunsAsync(userId, 10);
+        
+        return Ok(new { averagePace = avgPace });
+    }
+    catch (Exception ex)
+    {
+        return BadRequest(new { error = "Erro ao buscar pace médio." });
+    }
+}
 }

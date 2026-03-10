@@ -317,5 +317,36 @@ public async Task<IReadOnlyList<StravaActivity>> GetActivitiesByDateRangeAsync(
 
         return record ?? throw new TokenNotFoundException(userId);
     }
+
+    public async Task<string> GetAveragePaceOfLastRunsAsync(
+    Guid userId, 
+    int runCount = 10, 
+    CancellationToken ct = default)
+{
+    var recentActivities = await GetRecentActivitiesAsync(userId, 30, ct);
+
+    var lastRuns = recentActivities
+        .Where(a => a.SportType.Contains("Run", StringComparison.OrdinalIgnoreCase))
+        .Take(runCount)
+        .ToList();
+
+    if (lastRuns.Count == 0)
+    {
+        return "0:00 /km";
+    }
+
+    double totalMovingTimeSeconds = lastRuns.Sum(r => r.MovingTime); 
+    double totalDistanceKm = lastRuns.Sum(r => r.DistanceKm);
+
+    if (totalDistanceKm == 0) return "0:00 /km";
+
+    double averagePaceDecimal = (totalMovingTimeSeconds / 60.0) / totalDistanceKm;
+
+    TimeSpan paceTimeSpan = TimeSpan.FromMinutes(averagePaceDecimal);
+
+    string formattedPace = $"{(int)paceTimeSpan.TotalMinutes}:{paceTimeSpan.Seconds:D2} /km";
+
+    return formattedPace;
+}
 }
 
