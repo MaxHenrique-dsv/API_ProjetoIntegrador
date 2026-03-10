@@ -278,13 +278,10 @@ public sealed class StravaController : ControllerBase
         var hash = HMACSHA256.HashData(keyBytes, dataBytes);
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
-    [HttpGet("average-pace")]
-public async Task<IActionResult> GetAveragePace()
-{
-    var userIdClaim = User.FindFirst("sub")?.Value;
-    if (!Guid.TryParse(userIdClaim, out var userId))
-        return Unauthorized();
+[HttpGet("{userId}/average-pace")] 
 
+public async Task<IActionResult> GetAveragePace(Guid userId)
+{
     try
     {
         string avgPace = await _stravaService.GetAveragePaceOfLastRunsAsync(userId, 10);
