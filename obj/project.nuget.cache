@@ -1,6 +1,10 @@
 {
   "version": 2,
-  "dgSpecHash": "w1CFUlRMadI=",
+<<<<<<< HEAD
+  "dgSpecHash": "N1+Urrp4MRw=",
+>>>>>>> 5415bae48336911b1ea9b803d6780731f89e99e7
+=======
+
   "success": true,
   "projectFilePath": "C:\\Users\\Max\\Documents\\GitHub\\API_ProjetoIntegrador\\API_Strava.csproj",
   "expectedPackageFiles": [
