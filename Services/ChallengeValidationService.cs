@@ -74,7 +74,7 @@ public sealed class ChallengeValidationService : IChallengeValidationService
                 "distância={Dist:F2}km | pace={Pace}/km | progresso={Progress}%",
                 run.Id, run.Name, detail.Passed,
                 detail.ActualDistanceKm, detail.ActualPaceFormatted, detail.ProgressPercent);
-
+                await SaveActivityToDatabaseAsync(request.UserId, challenge.Id, run);
             if (!detail.Passed) continue;
 
             // ✅ Primeira atividade aprovada → concede o prêmio
@@ -129,7 +129,7 @@ public sealed class ChallengeValidationService : IChallengeValidationService
         _logger.LogInformation(
             "Resultado: passou={Passed} | dist={Dist:F2}km | pace={Pace}/km | progresso={Progress}%",
             detail.Passed, detail.ActualDistanceKm, detail.ActualPaceFormatted, detail.ProgressPercent);
-
+            await SaveActivityToDatabaseAsync(request.UserId, challenge.Id, activity);
         if (!detail.Passed)
             return ChallengeValidationResult.Failed(challenge, activity, detail, totalRunsChecked: 1);
 
@@ -190,4 +190,19 @@ public sealed class ChallengeValidationService : IChallengeValidationService
         return response.Models.FirstOrDefault()?.Id
             ?? throw new InvalidOperationException("Falha ao inserir reward_history no Supabase.");
     }
+    private async Task SaveActivityToDatabaseAsync(Guid userId, Guid challengeId, StravaActivity activity)
+{
+    var record = new UserActivity
+    {
+        Id = activity.Id, 
+        UserId = userId,
+        ChallengeId = challengeId,
+        Name = activity.Name,
+        DistanceKm = activity.Distance / 1000.0,
+        MovingTimeMinutes = activity.MovingTime / 60.0,
+        StartDate = activity.StartDate
+    };
+    await _supabase.From<UserActivity>().Upsert(record);
 }
+}
+

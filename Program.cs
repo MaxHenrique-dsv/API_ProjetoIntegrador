@@ -32,6 +32,7 @@ builder.Services
     .ValidateOnStart();
 
 builder.Services.AddHttpClient<StravaController>();
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 2. SUPABASE CLIENT (supabase-csharp)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -40,11 +41,10 @@ var supabaseOptions = builder.Configuration
     .GetSection(SupabaseOptions.SectionName)
     .Get<SupabaseOptions>()!;
 
-// O SDK do Supabase usa o service role key para operações server-side
-// (bypass de RLS), garantindo que o microsserviço tenha acesso total.
+
 var supabaseClient = new Supabase.Client(
     supabaseOptions.Url,
-    supabaseOptions.ServiceRoleKey,  // ⚠️ NUNCA expor no frontend
+    supabaseOptions.ServiceRoleKey, 
     new Supabase.SupabaseOptions
     {
         AutoRefreshToken = false,
@@ -52,8 +52,6 @@ var supabaseClient = new Supabase.Client(
     }
 );
 await supabaseClient.InitializeAsync();
-
-// Registra como Singleton – o cliente é thread-safe
 builder.Services.AddSingleton(supabaseClient);
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -74,23 +72,10 @@ builder.Services.AddHttpClient<IStravaService, StravaService>(client =>
 builder.Services.AddScoped<IChallengeValidationService, ChallengeValidationService>();
 builder.Services.AddScoped<IJoinChallengeService, JoinChallengeService>();
 builder.Services.AddScoped<IRewardService, RewardService>();
-// ═══════════════════════════════════════════════════════════════════════════════
-// 5. AUTENTICAÇÃO – Valida JWT do Supabase (HS256 e ES256)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// O Supabase emite dois tipos de JWT dependendo do método de login:
-//   HS256 (simétrico)   → login com email/senha  → validado com JwtSecret
-//   ES256 (assimétrico) → login com OAuth Google → validado via JWKS endpoint
-//
-// Usando Authority + MetadataAddress, o middleware busca automaticamente
-// a chave pública correta pelo "kid" do token ES256, e usa IssuerSigningKey
-// como fallback para tokens HS256.
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        // JWKS: o Supabase expõe as chaves públicas neste endpoint.
-        // O middleware baixa e cacheia automaticamente.
         options.Authority            = $"{supabaseOptions.Url}/auth/v1";
         options.MetadataAddress      = $"{supabaseOptions.Url}/auth/v1/.well-known/openid-configuration";
         options.RequireHttpsMetadata = true;
@@ -99,13 +84,9 @@ builder.Services
         {
             ValidateIssuerSigningKey = true,
 
-            // Chave simétrica para tokens HS256 (login email/senha)
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(supabaseOptions.JwtSecret)),
 
-            // Resolver: tokens ES256 não têm kid vazio — o middleware
-            // os resolve automaticamente via MetadataAddress/Authority.
-            // Tokens HS256 não têm kid, caem aqui como fallback.
             IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
             {
                 if (string.IsNullOrEmpty(kid))
@@ -177,7 +158,6 @@ builder.Services.AddSwaggerGen(c =>
         Description = "Microsserviço de integração com o Strava para validação de desafios de corrida."
     });
 
-    // Suporte a JWT no Swagger UI
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Description = "JWT do Supabase. Formato: Bearer {token}",
@@ -203,19 +183,10 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// 7. HEALTH CHECKS
-// ═══════════════════════════════════════════════════════════════════════════════
-
 builder.Services.AddHealthChecks();
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// PIPELINE
-// ═══════════════════════════════════════════════════════════════════════════════
 
 var app = builder.Build();
 
-// ① Global exception handler – deve ser o primeiro middleware
 app.UseGlobalExceptionHandler();
 
 if (app.Environment.IsDevelopment())
@@ -224,7 +195,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Strava Integration API v1");
-        c.RoutePrefix = string.Empty; // Swagger na raiz em dev
+        c.RoutePrefix = string.Empty;
     });
 }
 

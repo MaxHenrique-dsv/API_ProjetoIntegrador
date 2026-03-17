@@ -9,9 +9,6 @@ using System.Text;
 
 namespace StravaIntegration.Controllers;
 
-/// <summary>
-/// Gerencia o fluxo OAuth 2.0 com o Strava.
-/// </summary>
 [ApiController]
 [Route("api/strava")]
 [Produces("application/json")]
@@ -38,12 +35,6 @@ public sealed class StravaController : ControllerBase
     // GET /api/strava/login?userId={supabase-user-uuid}
     // ──────────────────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Inicia o fluxo OAuth do Strava.
-    ///
-    /// COMO USAR:
-    /// GET /api/strava/login?userId={uuid-do-supabase}
-    /// </summary>
     [HttpGet("login")]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status302Found)]
@@ -76,10 +67,6 @@ public sealed class StravaController : ControllerBase
     // GET /api/strava/callback  ← Strava redireciona aqui após autorização
     // ──────────────────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Callback OAuth do Strava. Recebe o authorization code e o state,
-    /// valida o HMAC, troca pelo access token e salva no Supabase.
-    /// </summary>
     [HttpGet("callback")]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status302Found)]
@@ -132,9 +119,6 @@ public sealed class StravaController : ControllerBase
     // GET /api/strava/activities?userId={uuid}&count={n}
     // ──────────────────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Retorna as atividades recentes do usuário informado via query param.
-    /// </summary>
     [HttpGet("activities")]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -186,9 +170,6 @@ public sealed class StravaController : ControllerBase
     // DELETE /api/strava/disconnect?userId={uuid}
     // ──────────────────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Remove a vinculação do Strava do usuário informado via query param.
-    /// </summary>
     [HttpDelete("disconnect")]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
