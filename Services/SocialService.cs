@@ -20,7 +20,6 @@ public class SocialService : ISocialService
 
     public async Task<Post> CreatePostAsync(Post newPost)
     {
-        // Garante que a data de criação é a atual
         newPost.CreatedAt = DateTimeOffset.UtcNow;
 
         var response = await _supabase.From<Post>().Insert(newPost);
@@ -39,13 +38,10 @@ public class SocialService : ISocialService
 
         try
         {
-            // Tenta inserir o Like
             await _supabase.From<PostLike>().Insert(likeRecord);
         }
         catch (Postgrest.Exceptions.PostgrestException ex)
         {
-            // Se violar a regra UNIQUE, significa que o utilizador já deu like.
-            // O comportamento comum numa rede social é remover o like (Toggle).
             if (ex.Message.Contains("unique_like_per_user_post"))
             {
                 await _supabase.From<PostLike>()

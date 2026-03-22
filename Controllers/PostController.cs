@@ -44,11 +44,19 @@ public class PostController : ControllerBase
             ActivityId = request.ActivityId
         };
 
-        var createdPost = await _socialService.CreatePostAsync(newPost);
-        return Ok(createdPost);
+    var createdPost = await _socialService.CreatePostAsync(newPost);
+    return Ok(new 
+    {
+        id = createdPost.Id,
+        userId = createdPost.UserId,
+        imageUrl = createdPost.ImageUrl,
+        caption = createdPost.Caption,
+        challengeId = createdPost.ChallengeId,
+        activityId = createdPost.ActivityId,
+        createdAt = createdPost.CreatedAt
+    });
     }
 
-    // ✅ Adicionamos o {userId} na rota para o front mandar na URL
     [HttpPost("{userId}/{postId}/like")]
     public async Task<IActionResult> ToggleLike(Guid userId, Guid postId)
     {
