@@ -140,3 +140,67 @@ public sealed class UserStravaToken : BaseModel
     [Column("updated_at")]
     public DateTimeOffset UpdatedAt { get; set; }
 }
+// Adiciona as novas tabelas ao ficheiro SupabaseEntities.cs
+
+// ─── posts ───────────────────────────────────────────────────────────────────
+[Table("posts")]
+public sealed class Post : BaseModel
+{
+    [PrimaryKey("id", false)]
+    public Guid Id { get; set; }
+
+    [Column("user_id")]
+    public Guid UserId { get; set; }
+
+    [Column("image_url")]
+    public string ImageUrl { get; set; } = string.Empty;
+
+    [Column("caption")]
+    public string? Caption { get; set; }
+
+    [Column("challenge_id")]
+    public Guid? ChallengeId { get; set; }
+
+    [Column("activity_id")]
+    public long? ActivityId { get; set; }
+
+    [Column("created_at")]
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+// ─── post_likes ──────────────────────────────────────────────────────────────
+[Table("post_likes")]
+public sealed class PostLike : BaseModel
+{
+    [PrimaryKey("id", false)]
+    public Guid Id { get; set; }
+
+    [Column("post_id")]
+    public Guid PostId { get; set; }
+
+    [Column("user_id")]
+    public Guid UserId { get; set; }
+
+    [Column("created_at")]
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+// ─── post_comments ───────────────────────────────────────────────────────────
+[Table("post_comments")]
+public sealed class PostComment : BaseModel
+{
+    [PrimaryKey("id", false)]
+    public Guid Id { get; set; }
+
+    [Column("post_id")]
+    public Guid PostId { get; set; }
+
+    [Column("user_id")]
+    public Guid UserId { get; set; }
+
+    [Column("content")]
+    public string Content { get; set; } = string.Empty;
+
+    [Column("created_at")]
+    public DateTimeOffset CreatedAt { get; set; }
+}

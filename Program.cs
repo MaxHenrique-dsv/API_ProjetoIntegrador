@@ -32,7 +32,7 @@ builder.Services
     .ValidateOnStart();
 
 builder.Services.AddHttpClient<StravaController>();
-
+builder.Services.AddScoped<ISocialService, SocialService>();
 // ═══════════════════════════════════════════════════════════════════════════════
 // 2. SUPABASE CLIENT (supabase-csharp)
 // ═══════════════════════════════════════════════════════════════════════════════
