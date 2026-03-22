@@ -60,14 +60,50 @@ public class PostController : ControllerBase
     [HttpPost("{userId}/{postId}/like")]
     public async Task<IActionResult> ToggleLike(Guid userId, Guid postId)
     {
-        // ❌ Removemos a necessidade de extrair do Token
-        // var userIdClaim = User.FindFirst("sub")?.Value;
-        // if (!Guid.TryParse(userIdClaim, out var userId))
-        //     return Unauthorized();
 
-        // ✅ Agora usa o userId que veio direto da URL
         await _socialService.ToggleLikeAsync(userId, postId);
         
         return Ok(new { message = "Like atualizado com sucesso." });
+    }
+    // DTO para receber o comentário
+    public class CreateCommentRequest
+    {
+        public Guid UserId { get; set; }
+        public string Content { get; set; } = string.Empty;
+    }
+
+    [HttpPost("{postId}/comment")]
+    public async Task<IActionResult> AddComment(Guid postId, [FromBody] CreateCommentRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Content))
+            return BadRequest(new { error = "O comentário não pode estar vazio." });
+
+        var comment = await _socialService.AddCommentAsync(postId, request.UserId, request.Content);
+
+        return Ok(new
+        {
+            id = comment.Id,
+            postId = comment.PostId,
+            userId = comment.UserId,
+            content = comment.Content,
+            createdAt = comment.CreatedAt
+        });
+    }
+
+
+    [HttpGet("{postId}/comments")]
+    public async Task<IActionResult> GetComments(Guid postId)
+    {
+        var comments = await _socialService.GetCommentsAsync(postId);
+        
+        var result = comments.Select(c => new
+        {
+            id = c.Id,
+            userId = c.UserId,
+            content = c.Content,
+            createdAt = c.CreatedAt
+        });
+
+        return Ok(result);
     }
 }

@@ -7,6 +7,8 @@ public interface ISocialService
 {
     Task<Post> CreatePostAsync(Post newPost);
     Task ToggleLikeAsync(Guid userId, Guid postId);
+    Task<PostComment> AddCommentAsync(Guid postId, Guid userId, string content);
+    Task<List<PostComment>> GetCommentsAsync(Guid postId);
 }
 
 public class SocialService : ISocialService
@@ -52,4 +54,28 @@ public class SocialService : ISocialService
             throw;
         }
     }
+
+public async Task<PostComment> AddCommentAsync(Guid postId, Guid userId, string content)
+{
+    var comment = new PostComment
+    {
+        PostId = postId,
+        UserId = userId,
+        Content = content,
+        CreatedAt = DateTimeOffset.UtcNow
+    };
+
+    var response = await _supabase.From<PostComment>().Insert(comment);
+    return response.Models.First();
+}
+
+public async Task<List<PostComment>> GetCommentsAsync(Guid postId)
+{
+    var response = await _supabase.From<PostComment>()
+        .Where(x => x.PostId == postId)
+        .Get();
+
+    // Retorna a lista ordenada do comentário mais antigo para o mais recente
+    return response.Models.OrderBy(x => x.CreatedAt).ToList();
+}
 }
