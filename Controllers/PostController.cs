@@ -7,7 +7,6 @@ namespace StravaIntegration.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize] // Protege a rede social
 public class PostController : ControllerBase
 {
     private readonly ISocialService _socialService;
