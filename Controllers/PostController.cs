@@ -7,6 +7,7 @@ namespace StravaIntegration.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+// [Authorize] <-- Removido temporariamente para testes
 public class PostController : ControllerBase
 {
     private readonly ISocialService _socialService;
@@ -16,25 +17,27 @@ public class PostController : ControllerBase
         _socialService = socialService;
     }
 
-    // DTO para receber os dados limpos do Frontend
+    // DTO modificado para receber o UserId do frontend
     public class CreatePostRequest
     {
+        public Guid UserId { get; set; }
         public string ImageUrl { get; set; } = string.Empty;
         public string? Caption { get; set; }
         public Guid? ChallengeId { get; set; }
-        public long? ActivityId { get; set; } // ID da corrida do Strava
+        public long? ActivityId { get; set; }
     }
 
     [HttpPost]
     public async Task<IActionResult> CreatePost([FromBody] CreatePostRequest request)
     {
-        var userIdClaim = User.FindFirst("sub")?.Value;
-        if (!Guid.TryParse(userIdClaim, out var userId))
-            return Unauthorized();
+        // ❌ Removemos a necessidade de extrair do Token
+        // var userIdClaim = User.FindFirst("sub")?.Value;
+        // if (!Guid.TryParse(userIdClaim, out var userId))
+        //     return Unauthorized();
 
         var newPost = new Post
         {
-            UserId = userId,
+            UserId = request.UserId, // ✅ Agora pega direto do que o frontend mandou no Body
             ImageUrl = request.ImageUrl,
             Caption = request.Caption,
             ChallengeId = request.ChallengeId,
@@ -45,13 +48,16 @@ public class PostController : ControllerBase
         return Ok(createdPost);
     }
 
-    [HttpPost("{postId}/like")]
-    public async Task<IActionResult> ToggleLike(Guid postId)
+    // ✅ Adicionamos o {userId} na rota para o front mandar na URL
+    [HttpPost("{userId}/{postId}/like")]
+    public async Task<IActionResult> ToggleLike(Guid userId, Guid postId)
     {
-        var userIdClaim = User.FindFirst("sub")?.Value;
-        if (!Guid.TryParse(userIdClaim, out var userId))
-            return Unauthorized();
+        // ❌ Removemos a necessidade de extrair do Token
+        // var userIdClaim = User.FindFirst("sub")?.Value;
+        // if (!Guid.TryParse(userIdClaim, out var userId))
+        //     return Unauthorized();
 
+        // ✅ Agora usa o userId que veio direto da URL
         await _socialService.ToggleLikeAsync(userId, postId);
         
         return Ok(new { message = "Like atualizado com sucesso." });
