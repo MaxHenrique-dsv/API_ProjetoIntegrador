@@ -203,6 +203,58 @@ public sealed class ChallengeValidationService : IChallengeValidationService
         StartDate = activity.StartDate
     };
     await _supabase.From<UserActivity>().Upsert(record);
-}
+    await UpdateUserStreakAsync(userId, activity.StartDate);
 }
 
+    private async Task UpdateUserStreakAsync(Guid userId, DateTimeOffset activityDate)
+    {
+        var existingStreak = await _supabase.From<UserStreak>().Where(x => x.UserId == userId).Single();
+
+        if (existingStreak == null)
+        {
+            existingStreak = new UserStreak 
+            { 
+                UserId = userId, 
+                CurrentStreak = 1, 
+                LastActivityDate = activityDate 
+            };
+            await _supabase.From<UserStreak>().Insert(existingStreak);
+            return;
+        }
+
+        var lastDate = existingStreak.LastActivityDate;
+        
+        DateTime GetStartOfWeek(DateTimeOffset dt)
+        {
+            var d = dt.Date;
+            int diff = (7 + (d.DayOfWeek - DayOfWeek.Monday)) % 7;
+            return d.AddDays(-1 * diff).Date;
+        }
+
+        var activityWeekStart = GetStartOfWeek(activityDate);
+        var lastWeekStart = GetStartOfWeek(lastDate);
+
+        int weekDiff = (int)(activityWeekStart - lastWeekStart).TotalDays / 7;
+
+        if (weekDiff == 0)
+        {
+            if (activityDate > lastDate)
+            {
+                existingStreak.LastActivityDate = activityDate;
+                await _supabase.From<UserStreak>().Update(existingStreak);
+            }
+        }
+        else if (weekDiff == 1)
+        {
+            existingStreak.CurrentStreak += 1;
+            existingStreak.LastActivityDate = activityDate;
+            await _supabase.From<UserStreak>().Update(existingStreak);
+        }
+        else if (weekDiff > 1)
+        {
+            existingStreak.CurrentStreak = 1;
+            existingStreak.LastActivityDate = activityDate;
+            await _supabase.From<UserStreak>().Update(existingStreak);
+        }
+    }
+}

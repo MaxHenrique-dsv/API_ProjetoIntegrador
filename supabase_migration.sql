@@ -109,3 +109,6 @@ as $$
         select 1 from public.user_strava_tokens where user_id = p_user_id
     );
 $$;
+
+-- ─── Adicionar club_id na tabela posts ────────────────────────────────────────
+ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS club_id uuid REFERENCES public.clubs(id);

@@ -164,6 +164,9 @@ public sealed class Post : BaseModel
     [Column("activity_id")]
     public long? ActivityId { get; set; }
 
+    [Column("club_id")]
+    public Guid? ClubId { get; set; }
+
     [Column("created_at")]
     public DateTimeOffset CreatedAt { get; set; }
 }
@@ -203,4 +206,61 @@ public sealed class PostComment : BaseModel
 
     [Column("created_at")]
     public DateTimeOffset CreatedAt { get; set; }
+}
+
+// ─── user_streaks ────────────────────────────────────────────────────────────
+[Table("user_streaks")]
+public sealed class UserStreak : BaseModel
+{
+    [PrimaryKey("user_id", false)]
+    public Guid UserId { get; set; }
+
+    [Column("current_streak")]
+    public int CurrentStreak { get; set; }
+
+    [Column("last_activity_date")]
+    public DateTimeOffset LastActivityDate { get; set; }
+}
+
+// ─── clubs ───────────────────────────────────────────────────────────────────
+[Table("clubs")]
+public sealed class Club : BaseModel
+{
+    [PrimaryKey("id", false)]
+    public Guid Id { get; set; }
+
+    [Column("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [Column("description")]
+    public string? Description { get; set; }
+
+    [Column("admin_id")]
+    public Guid AdminId { get; set; }
+
+    [Column("is_public")]
+    public bool IsPublic { get; set; }
+
+    [Column("created_at")]
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+// ─── club_members ────────────────────────────────────────────────────────────
+[Table("club_members")]
+public sealed class ClubMember : BaseModel
+{
+    [PrimaryKey("id", false)]
+    public Guid Id { get; set; }
+
+    [Column("club_id")]
+    public Guid ClubId { get; set; }
+
+    [Column("user_id")]
+    public Guid UserId { get; set; }
+
+    [Column("status")]
+    public string Status { get; set; } = "active";
+
+    [Column("joined_at")]
+    public DateTimeOffset JoinedAt { get; set; }
 }

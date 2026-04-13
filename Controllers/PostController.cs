@@ -106,4 +106,48 @@ public class PostController : ControllerBase
 
         return Ok(result);
     }
+
+    public class DeletePostRequest
+    {
+        public Guid UserId { get; set; }
+    }
+
+    [HttpDelete("{postId}")]
+    public async Task<IActionResult> DeletePost(Guid postId, [FromBody] DeletePostRequest request)
+    {
+        var (success, statusCode, message) = await _socialService.DeletePostAsync(postId, request.UserId);
+
+        if (!success)
+        {
+            if (statusCode == 404)
+                return NotFound(new { error = message });
+            
+            if (statusCode == 403)
+                return StatusCode(403, new { error = message });
+
+            return StatusCode(statusCode, new { error = message });
+        }
+
+        return Ok(new { message = message });
+    }
+
+    [HttpGet("feed/{userId}")]
+    public async Task<IActionResult> GetFeed(Guid userId)
+    {
+        var feed = await _socialService.GetFeedAsync(userId);
+        
+        var result = feed.Select(p => new
+        {
+            id = p.Id,
+            userId = p.UserId,
+            imageUrl = p.ImageUrl,
+            caption = p.Caption,
+            challengeId = p.ChallengeId,
+            activityId = p.ActivityId,
+            clubId = p.ClubId,
+            createdAt = p.CreatedAt
+        });
+
+        return Ok(result);
+    }
 }
